@@ -409,6 +409,217 @@ local BaseAddons = {};
 do
     local Funcs = {};
 
+    function Funcs:AddScale(Idx, Info)
+        local ParentObj = self;
+        
+        assert(Info.Default, 'AddScale: Missing default value.');
+        assert(Info.Min, 'AddScale: Missing minimum value.');
+        assert(Info.Max, 'AddScale: Missing maximum value.');
+        
+        local Scale = {
+            Value = Info.Default;
+            Min = Info.Min or 0.1;
+            Max = Info.Max or 5;
+            Type = 'Scale';
+            Callback = Info.Callback or function(Value) end;
+        };
+        
+        local DisplayFrame = Library:Create('Frame', {
+            BackgroundColor3 = Color3.new(1, 1, 1);
+            BorderColor3 = Library.OutlineColor;
+            Size = UDim2.new(0, 40, 0, 14);
+            ZIndex = 6;
+            Parent = ParentObj.TextLabel or ParentObj.Outer;
+        });
+        
+        Library:AddToRegistry(DisplayFrame, {
+            BorderColor3 = 'OutlineColor';
+        });
+        
+        local DisplayLabel = Library:CreateLabel({
+            Size = UDim2.new(1, 0, 1, 0);
+            TextSize = 12;
+            Text = tostring(Scale.Value);
+            TextWrapped = true;
+            ZIndex = 7;
+            Parent = DisplayFrame;
+        });
+        
+        local PickerFrameOuter = Library:Create('Frame', {
+            Name = 'Scale';
+            BackgroundColor3 = Color3.new(1, 1, 1);
+            BorderColor3 = Color3.new(0, 0, 0);
+            Size = UDim2.fromOffset(180, 100);
+            Visible = false;
+            ZIndex = 15;
+            Parent = ScreenGui,
+        });
+        
+        DisplayFrame:GetPropertyChangedSignal('AbsolutePosition'):Connect(function()
+            PickerFrameOuter.Position = UDim2.fromOffset(DisplayFrame.AbsolutePosition.X, DisplayFrame.AbsolutePosition.Y + 18);
+        end)
+        
+        local PickerFrameInner = Library:Create('Frame', {
+            BackgroundColor3 = Library.BackgroundColor;
+            BorderColor3 = Library.OutlineColor;
+            BorderMode = Enum.BorderMode.Inset;
+            Size = UDim2.new(1, 0, 1, 0);
+            ZIndex = 16;
+            Parent = PickerFrameOuter;
+        });
+        
+        Library:AddToRegistry(PickerFrameInner, {
+            BackgroundColor3 = 'BackgroundColor';
+            BorderColor3 = 'OutlineColor';
+        });
+        
+        local Highlight = Library:Create('Frame', {
+            BackgroundColor3 = Library.AccentColor;
+            BorderSizePixel = 0;
+            Size = UDim2.new(1, 0, 0, 2);
+            ZIndex = 17;
+            Parent = PickerFrameInner;
+        });
+        
+        local SliderOuter = Library:Create('Frame', {
+            BorderColor3 = Color3.new(0, 0, 0);
+            Position = UDim2.new(0, 8, 0, 10);
+            Size = UDim2.new(1, -16, 0, 13);
+            ZIndex = 17;
+            Parent = PickerFrameInner;
+        });
+        
+        local SliderInner = Library:Create('Frame', {
+            BackgroundColor3 = Library.MainColor;
+            BorderColor3 = Library.OutlineColor;
+            BorderMode = Enum.BorderMode.Inset;
+            Size = UDim2.new(1, 0, 1, 0);
+            ZIndex = 18;
+            Parent = SliderOuter;
+        });
+        
+        Library:AddToRegistry(SliderInner, {
+            BackgroundColor3 = 'MainColor';
+            BorderColor3 = 'OutlineColor';
+        });
+        
+        local Fill = Library:Create('Frame', {
+            BackgroundColor3 = Library.AccentColor;
+            BorderColor3 = Library.AccentColorDark;
+            Size = UDim2.new(0, 0, 1, 0);
+            ZIndex = 19;
+            Parent = SliderInner;
+        });
+        
+        Library:AddToRegistry(Fill, {
+            BackgroundColor3 = 'AccentColor';
+            BorderColor3 = 'AccentColorDark';
+        });
+        
+        local ValueLabel = Library:CreateLabel({
+            Size = UDim2.new(1, 0, 0, 15);
+            TextSize = 14;
+            Text = tostring(Scale.Value);
+            Position = UDim2.new(0, 0, 0, 30);
+            ZIndex = 20;
+            Parent = PickerFrameInner;
+        });
+        
+        local MinMaxLabel = Library:CreateLabel({
+            Size = UDim2.new(1, 0, 0, 12);
+            TextSize = 11;
+            Text = string.format('Min: %s | Max: %s', tostring(Scale.Min), tostring(Scale.Max));
+            Position = UDim2.new(0, 0, 0, 50);
+            ZIndex = 20;
+            Parent = PickerFrameInner;
+        });
+        
+        local MaxSize = 164;
+        
+        function Scale:UpdateDisplay()
+            DisplayLabel.Text = tostring(Scale.Value);
+            ValueLabel.Text = string.format('Value: %s', tostring(Scale.Value));
+            
+            local X = math.clamp(Library:MapValue(Scale.Value, Scale.Min, Scale.Max, 0, MaxSize), 0, MaxSize);
+            Fill.Size = UDim2.new(0, X, 1, 0);
+        end
+        
+        function Scale:SetValue(Value)
+            Value = math.clamp(tonumber(Value) or Scale.Value, Scale.Min, Scale.Max);
+            Scale.Value = Value;
+            Scale:UpdateDisplay();
+            
+            Library:SafeCallback(Scale.Callback, Scale.Value);
+            Library:SafeCallback(Scale.Changed, Scale.Value);
+            Library:AttemptSave();
+        end
+        
+        function Scale:OnChanged(Func)
+            Scale.Changed = Func;
+            Func(Scale.Value);
+        end
+        
+        function Scale:Show()
+            for Frame, Val in next, Library.OpenedFrames do
+                if Frame.Name == 'Scale' then
+                    Frame.Visible = false;
+                    Library.OpenedFrames[Frame] = nil;
+                end;
+            end;
+            
+            PickerFrameOuter.Visible = true;
+            Library.OpenedFrames[PickerFrameOuter] = true;
+            Scale:UpdateDisplay();
+        end
+        
+        function Scale:Hide()
+            PickerFrameOuter.Visible = false;
+            Library.OpenedFrames[PickerFrameOuter] = nil;
+        end
+        
+        DisplayFrame.InputBegan:Connect(function(Input)
+            if Input.UserInputType == Enum.UserInputType.MouseButton1 and not Library:MouseIsOverOpenedFrame() then
+                if PickerFrameOuter.Visible then
+                    Scale:Hide();
+                else
+                    Scale:Show();
+                end;
+            end;
+        end);
+        
+        SliderInner.InputBegan:Connect(function(Input)
+            if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+                while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
+                    local MinX = SliderInner.AbsolutePosition.X;
+                    local MaxX = MinX + SliderInner.AbsoluteSize.X;
+                    local MouseX = math.clamp(Mouse.X, MinX, MaxX);
+                    
+                    local NewValue = Library:MapValue(MouseX - MinX, 0, MaxSize, Scale.Min, Scale.Max);
+                    Scale:SetValue(NewValue);
+                    
+                    RenderStepped:Wait();
+                end;
+            end;
+        end);
+        
+        Library:GiveSignal(InputService.InputBegan:Connect(function(Input)
+            if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+                local AbsPos, AbsSize = PickerFrameOuter.AbsolutePosition, PickerFrameOuter.AbsoluteSize;
+                
+                if Mouse.X < AbsPos.X or Mouse.X > AbsPos.X + AbsSize.X
+                    or Mouse.Y < (AbsPos.Y - 20 - 1) or Mouse.Y > AbsPos.Y + AbsSize.Y then
+                    
+                    Scale:Hide();
+                end;
+            end;
+        end));
+        
+        Scale:UpdateDisplay();
+        Options[Idx] = Scale;
+        
+        return Scale;
+    end;
+
     function Funcs:AddColorPicker(Idx, Info)
         local ToggleLabel = self.TextLabel;
         -- local Container = self.Container;
