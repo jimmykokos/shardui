@@ -419,6 +419,8 @@ local MenuGroup = Tabs['UI Settings']:AddLeftGroupbox('Menu')
 -- I set NoUI so it does not show up in the keybinds menu
 MenuGroup:AddButton('Unload', function() Library:Unload() end)
 MenuGroup:AddLabel('Menu bind'):AddKeyPicker('MenuKeybind', { Default = 'End', NoUI = true, Text = 'Menu keybind' })
+
+-- UI Scale slider - uses Library.SetScale for proper UIScale-based scaling
 MenuGroup:AddSlider('WindowScale', {
     Text = 'UI Scale',
     Default = 1,
@@ -426,9 +428,29 @@ MenuGroup:AddSlider('WindowScale', {
     Max = 1.5,
     Rounding = 2,
     Callback = function(Value)
-        Funcs:AddScale(Value)
+        Library.SetScale(Value)
     end
 })
+
+-- Alternative way using OnChanged (recommended for decoupling UI from logic)
+Options.WindowScale:OnChanged(function()
+    Library.SetScale(Options.WindowScale.Value)
+end)
+
+-- Example with manual input field (type a number and press Enter)
+MenuGroup:AddInput('ScaleInput', {
+    Text = 'Scale (manual)',
+    Default = '1',
+    Numeric = true,
+    Finished = true,  -- triggers callback only on Enter
+    Callback = function(Value)
+        local num = tonumber(Value)
+        if num then
+            Library.SetScale(num)
+        end
+    end
+})
+
 Library.ToggleKeybind = Options.MenuKeybind -- Allows you to have a custom keybind for the menu
 
 -- Addons:

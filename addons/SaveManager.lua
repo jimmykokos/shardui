@@ -65,6 +65,17 @@ local SaveManager = {} do
 				end
 			end,
 		},
+
+		Scale = {
+			Save = function(idx, object)
+				return { type = 'Scale', idx = idx, value = tostring(object.Value) }
+			end,
+			Load = function(idx, data)
+				if tonumber(data.value) then
+					Library.SetScale(tonumber(data.value))
+				end
+			end,
+		},
 	}
 
 	function SaveManager:SetIgnoreIndexes(list)
@@ -125,6 +136,11 @@ local SaveManager = {} do
 			if self.Parser[option.type] then
 				task.spawn(function() self.Parser[option.type].Load(option.idx, option) end) -- task.spawn() so the config loading wont get stuck.
 			end
+		end
+
+		-- Restore UI scale if WindowScale option exists
+		if Options.WindowScale and Options.WindowScale.Value then
+			Library.SetScale(Options.WindowScale.Value)
 		end
 
 		return true
