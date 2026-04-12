@@ -1,7 +1,7 @@
 -- New example script written by wally
 -- You can suggest changes with a pull request or something
 
-local repo = 'https://raw.githubusercontent.com/ShardAI/sharduigayedition/ui-масштабирование-сlider-d5a93/'
+local repo = 'https://raw.githubusercontent.com/ShardAI/sharduigayedition/ui-scaling-refactor-391d3/'
 
 local Library = loadstring(game:HttpGet(repo .. 'Library.lua'))()
 local ThemeManager = loadstring(game:HttpGet(repo .. 'addons/ThemeManager.lua'))()
