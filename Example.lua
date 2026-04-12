@@ -1,7 +1,7 @@
 -- New example script written by wally
 -- You can suggest changes with a pull request or something
 
-local repo = 'https://raw.githubusercontent.com/jimmykokos/shardui/main/'
+local repo = 'https://raw.githubusercontent.com/ShardAI/sharduigayedition/ui-масштабирование-сlider-d5a93/'
 
 local Library = loadstring(game:HttpGet(repo .. 'Library.lua'))()
 local ThemeManager = loadstring(game:HttpGet(repo .. 'addons/ThemeManager.lua'))()
@@ -419,7 +419,16 @@ local MenuGroup = Tabs['UI Settings']:AddLeftGroupbox('Menu')
 -- I set NoUI so it does not show up in the keybinds menu
 MenuGroup:AddButton('Unload', function() Library:Unload() end)
 MenuGroup:AddLabel('Menu bind'):AddKeyPicker('MenuKeybind', { Default = 'End', NoUI = true, Text = 'Menu keybind' })
-
+MenuGroup:AddSlider('WindowScale', {
+    Text = 'UI Scale',
+    Default = 1,
+    Min = 0.5,
+    Max = 1.5,
+    Rounding = 2,
+    Callback = function(Value)
+        Funcs:AddScale(Value)
+    end
+})
 Library.ToggleKeybind = Options.MenuKeybind -- Allows you to have a custom keybind for the menu
 
 -- Addons:
