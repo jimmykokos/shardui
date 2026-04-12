@@ -3760,10 +3760,10 @@ function Library:CreateWindow(...)
                 end;
 
                 if Cache[Prop] == 1 then
-                    continue;
+                    -- skip this property
+                else
+                    TweenService:Create(Desc, TweenInfo.new(FadeTime, Enum.EasingStyle.Linear), { [Prop] = Toggled and Cache[Prop] or 1 }):Play();
                 end;
-
-                TweenService:Create(Desc, TweenInfo.new(FadeTime, Enum.EasingStyle.Linear), { [Prop] = Toggled and Cache[Prop] or 1 }):Play();
             end;
         end;
 

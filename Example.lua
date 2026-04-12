@@ -390,7 +390,7 @@ local FrameCounter = 0;
 local FPS = 60;
 
 local WatermarkConnection = game:GetService('RunService').RenderStepped:Connect(function()
-    FrameCounter += 1;
+    FrameCounter = FrameCounter + 1;
 
     if (tick() - FrameTimer) >= 1 then
         FPS = FrameCounter;
