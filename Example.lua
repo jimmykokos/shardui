@@ -1,7 +1,7 @@
 -- New example script written by wally
 -- You can suggest changes with a pull request or something
 
-local repo = 'https://raw.githubusercontent.com/jimmykokos/shardui/main/'
+local repo = 'https://raw.githubusercontent.com/ShardAI/sharduigayedition/ui-scaling-refactor-391d3/'
 
 local Library = loadstring(game:HttpGet(repo .. 'Library.lua'))()
 local ThemeManager = loadstring(game:HttpGet(repo .. 'addons/ThemeManager.lua'))()
@@ -390,7 +390,7 @@ local FrameCounter = 0;
 local FPS = 60;
 
 local WatermarkConnection = game:GetService('RunService').RenderStepped:Connect(function()
-    FrameCounter += 1;
+    FrameCounter = FrameCounter + 1;
 
     if (tick() - FrameTimer) >= 1 then
         FPS = FrameCounter;
@@ -419,6 +419,37 @@ local MenuGroup = Tabs['UI Settings']:AddLeftGroupbox('Menu')
 -- I set NoUI so it does not show up in the keybinds menu
 MenuGroup:AddButton('Unload', function() Library:Unload() end)
 MenuGroup:AddLabel('Menu bind'):AddKeyPicker('MenuKeybind', { Default = 'End', NoUI = true, Text = 'Menu keybind' })
+
+-- UI Scale slider - uses Library.SetScale for proper UIScale-based scaling
+MenuGroup:AddSlider('WindowScale', {
+    Text = 'UI Scale',
+    Default = 1,
+    Min = 0.5,
+    Max = 1.5,
+    Rounding = 2,
+    Callback = function(Value)
+        Library.SetScale(Value)
+    end
+})
+
+-- Alternative way using OnChanged (recommended for decoupling UI from logic)
+Options.WindowScale:OnChanged(function()
+    Library.SetScale(Options.WindowScale.Value)
+end)
+
+-- Example with manual input field (type a number and press Enter)
+MenuGroup:AddInput('ScaleInput', {
+    Text = 'Scale (manual)',
+    Default = '1',
+    Numeric = true,
+    Finished = true,  -- triggers callback only on Enter
+    Callback = function(Value)
+        local num = tonumber(Value)
+        if num then
+            Library.SetScale(num)
+        end
+    end
+})
 
 Library.ToggleKeybind = Options.MenuKeybind -- Allows you to have a custom keybind for the menu
 

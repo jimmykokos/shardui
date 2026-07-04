@@ -2971,6 +2971,13 @@ function Library:CreateWindow(...)
         Parent = ScreenGui;
     });
 
+    -- Create UIScale for window scaling
+    local uiScale = Instance.new('UIScale');
+    uiScale.Name = 'WindowUIScale';
+    uiScale.Scale = 1;
+    uiScale.Parent = Outer;
+    Library.WindowScale = uiScale;
+
     Library:MakeDraggable(Outer, 25);
 
     local Inner = Library:Create('Frame', {
@@ -3550,10 +3557,10 @@ function Library:CreateWindow(...)
                 end;
 
                 if Cache[Prop] == 1 then
-                    continue;
+                    -- skip this property
+                else
+                    TweenService:Create(Desc, TweenInfo.new(FadeTime, Enum.EasingStyle.Linear), { [Prop] = Toggled and Cache[Prop] or 1 }):Play();
                 end;
-
-                TweenService:Create(Desc, TweenInfo.new(FadeTime, Enum.EasingStyle.Linear), { [Prop] = Toggled and Cache[Prop] or 1 }):Play();
             end;
         end;
 
@@ -3579,6 +3586,17 @@ function Library:CreateWindow(...)
     Window.Holder = Outer;
 
     return Window;
+end;
+
+--- Масштабирует весь UI окна.
+--- @param scale number — коэффициент масштабирования (например: 0.5 = половина, 1.0 = норма, 1.5 = полтора размера)
+function Library.SetScale(scale)
+    if not Library.WindowScale then
+        return;
+    end;
+    
+    local clampedScale = math.clamp(tonumber(scale) or 1, 0.25, 3.0);
+    Library.WindowScale.Scale = clampedScale;
 end;
 
 local function OnPlayerChange()

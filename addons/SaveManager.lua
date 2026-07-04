@@ -65,6 +65,17 @@ local SaveManager = {} do
 				end
 			end,
 		},
+
+		Scale = {
+			Save = function(idx, object)
+				return { type = 'Scale', idx = idx, value = tostring(object.Value) }
+			end,
+			Load = function(idx, data)
+				if tonumber(data.value) then
+					Library.SetScale(tonumber(data.value))
+				end
+			end,
+		},
 	}
 
 	function SaveManager:SetIgnoreIndexes(list)
@@ -90,16 +101,15 @@ local SaveManager = {} do
 		}
 
 		for idx, toggle in next, Toggles do
-			if self.Ignore[idx] then continue end
-
-			table.insert(data.objects, self.Parser[toggle.Type].Save(idx, toggle))
+			if not self.Ignore[idx] then
+				table.insert(data.objects, self.Parser[toggle.Type].Save(idx, toggle))
+			end
 		end
 
 		for idx, option in next, Options do
-			if not self.Parser[option.Type] then continue end
-			if self.Ignore[idx] then continue end
-
-			table.insert(data.objects, self.Parser[option.Type].Save(idx, option))
+			if self.Parser[option.Type] and not self.Ignore[idx] then
+				table.insert(data.objects, self.Parser[option.Type].Save(idx, option))
+			end
 		end	
 
 		local success, encoded = pcall(httpService.JSONEncode, httpService, data)
@@ -126,6 +136,11 @@ local SaveManager = {} do
 			if self.Parser[option.type] then
 				task.spawn(function() self.Parser[option.type].Load(option.idx, option) end) -- task.spawn() so the config loading wont get stuck.
 			end
+		end
+
+		-- Restore UI scale if WindowScale option exists
+		if Options.WindowScale and Options.WindowScale.Value then
+			Library.SetScale(Options.WindowScale.Value)
 		end
 
 		return true
