@@ -2265,7 +2265,8 @@ do
 
         local MAX_DROPDOWN_ITEMS = 8;
 
-        local ListOuter = Library:Create('Frame', {
+        -- фрейм заменен на кнопку для предотвращения взаимодействия с низлежащим текстбоксом
+        local ListOuter = Library:Create('TextButton', {
             BackgroundColor3 = Color3.new(0, 0, 0);
             BorderColor3 = Color3.new(0, 0, 0);
             ZIndex = 20;
