@@ -161,7 +161,7 @@ function Library:CreateLabel(Properties, IsHud)
     return Library:Create(_Instance, Properties);
 end;
 
-function Library:MakeDraggable(Instance, Cutoff)
+function Library:MakeDraggable(Instance)
     Instance.Active = true;
 
     Instance.InputBegan:Connect(function(Input)
@@ -170,10 +170,6 @@ function Library:MakeDraggable(Instance, Cutoff)
                 Mouse.X - Instance.AbsolutePosition.X,
                 Mouse.Y - Instance.AbsolutePosition.Y
             );
-
-            if ObjPos.Y > (Cutoff or 40) then
-                return;
-            end;
 
             while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
                 Instance.Position = UDim2.new(
@@ -457,7 +453,9 @@ do
         -- There was some issue which caused RelativeOffset to be way off
         -- Thus the color picker would never show
 
-        local PickerFrameOuter = Library:Create('Frame', {
+        local PickerFrameOuter = Library:Create('TextButton', {
+            Text = '',
+            AutoButtonColor = false,
             Name = 'Color';
             BackgroundColor3 = Color3.new(1, 1, 1);
             BorderColor3 = Color3.new(0, 0, 0);
@@ -2267,6 +2265,8 @@ do
 
         -- фрейм заменен на кнопку для предотвращения взаимодействия с низлежащим текстбоксом
         local ListOuter = Library:Create('TextButton', {
+            Text = '',
+            AutoButtonColor = false,
             BackgroundColor3 = Color3.new(0, 0, 0);
             BorderColor3 = Color3.new(0, 0, 0);
             ZIndex = 20;
@@ -2378,13 +2378,14 @@ do
 
                 Count = Count + 1;
 
-                local Button = Library:Create('Frame', {
+                local Button = Library:Create('TextButton', {
+                    Text = '',
+                    AutoButtonColor = false,
                     BackgroundColor3 = Library.MainColor;
                     BorderColor3 = Library.OutlineColor;
                     BorderMode = Enum.BorderMode.Middle;
                     Size = UDim2.new(1, -1, 0, 20);
                     ZIndex = 23;
-                    Active = true,
                     Parent = Scrolling;
                 });
 
@@ -2428,42 +2429,40 @@ do
                     Library.RegistryMap[ButtonLabel].Properties.TextColor3 = Selected and 'AccentColor' or 'FontColor';
                 end;
 
-                ButtonLabel.InputBegan:Connect(function(Input)
-                    if Input.UserInputType == Enum.UserInputType.MouseButton1 then
-                        local Try = not Selected;
+                Button.MouseButton1Click:Connect(function()
+                    local Try = not Selected;
 
-                        if Dropdown:GetActiveValues() == 1 and (not Try) and (not Info.AllowNull) then
-                        else
-                            if Info.Multi then
-                                Selected = Try;
+                    if Dropdown:GetActiveValues() == 1 and (not Try) and (not Info.AllowNull) then
+                    else
+                        if Info.Multi then
+                            Selected = Try;
 
-                                if Selected then
-                                    Dropdown.Value[Value] = true;
-                                else
-                                    Dropdown.Value[Value] = nil;
-                                end;
+                            if Selected then
+                                Dropdown.Value[Value] = true;
                             else
-                                Selected = Try;
+                                Dropdown.Value[Value] = nil;
+                            end;
+                        else
+                            Selected = Try;
 
-                                if Selected then
-                                    Dropdown.Value = Value;
-                                else
-                                    Dropdown.Value = nil;
-                                end;
-
-                                for _, OtherButton in next, Buttons do
-                                    OtherButton:UpdateButton();
-                                end;
+                            if Selected then
+                                Dropdown.Value = Value;
+                            else
+                                Dropdown.Value = nil;
                             end;
 
-                            Table:UpdateButton();
-                            Dropdown:Display();
-
-                            Library:SafeCallback(Dropdown.Callback, Dropdown.Value);
-                            Library:SafeCallback(Dropdown.Changed, Dropdown.Value);
-
-                            Library:AttemptSave();
+                            for _, OtherButton in next, Buttons do
+                                OtherButton:UpdateButton();
+                            end;
                         end;
+
+                        Table:UpdateButton();
+                        Dropdown:Display();
+
+                        Library:SafeCallback(Dropdown.Callback, Dropdown.Value);
+                        Library:SafeCallback(Dropdown.Changed, Dropdown.Value);
+
+                        Library:AttemptSave();
                     end;
                 end);
 
@@ -2971,7 +2970,7 @@ function Library:CreateWindow(...)
         Parent = ScreenGui;
     });
 
-    Library:MakeDraggable(Outer, 25);
+    Library:MakeDraggable(Outer)
 
     local Inner = Library:Create('Frame', {
         BackgroundColor3 = Library.MainColor;
@@ -3067,7 +3066,9 @@ function Library:CreateWindow(...)
 
         local TabButtonWidth = Library:GetTextBounds(Name, Library.Font, 16);
 
-        local TabButton = Library:Create('Frame', {
+        local TabButton = Library:Create('TextButton', {
+            Text = '',
+            AutoButtonColor = false,
             BackgroundColor3 = Library.BackgroundColor;
             BorderColor3 = Library.OutlineColor;
             Size = UDim2.new(0, TabButtonWidth + 8 + 4, 1, 0);
@@ -3186,7 +3187,9 @@ function Library:CreateWindow(...)
         function Tab:AddGroupbox(Info)
             local Groupbox = {};
 
-            local BoxOuter = Library:Create('Frame', {
+            local BoxOuter = Library:Create('TextButton', {
+                Text = '',
+                AutoButtonColor = false,
                 BackgroundColor3 = Library.BackgroundColor;
                 BorderColor3 = Library.OutlineColor;
                 BorderMode = Enum.BorderMode.Inset;
@@ -3286,7 +3289,9 @@ function Library:CreateWindow(...)
                 Tabs = {};
             };
 
-            local BoxOuter = Library:Create('Frame', {
+            local BoxOuter = Library:Create('TextButton', {
+                Text = '',
+                AutoButtonColor = false,
                 BackgroundColor3 = Library.BackgroundColor;
                 BorderColor3 = Library.OutlineColor;
                 BorderMode = Enum.BorderMode.Inset;
@@ -3344,7 +3349,9 @@ function Library:CreateWindow(...)
             function Tabbox:AddTab(Name)
                 local Tab = {};
 
-                local Button = Library:Create('Frame', {
+                local Button = Library:Create('TextButton', {
+                    Text = '',
+                    AutoButtonColor = false,
                     BackgroundColor3 = Library.MainColor;
                     BorderColor3 = Color3.new(0, 0, 0);
                     Size = UDim2.new(0.5, 0, 1, 0);
@@ -3444,8 +3451,8 @@ function Library:CreateWindow(...)
                     BoxOuter.Size = UDim2.new(1, 0, 0, 20 + Size + 2 + 2);
                 end;
 
-                Button.InputBegan:Connect(function(Input)
-                    if Input.UserInputType == Enum.UserInputType.MouseButton1 and not Library:MouseIsOverOpenedFrame() then
+                Button.MouseButton1Click:Connect(function()
+                    if not Library:MouseIsOverOpenedFrame() then
                         Tab:Show();
                         Tab:Resize();
                     end;
@@ -3480,10 +3487,8 @@ function Library:CreateWindow(...)
             return Tab:AddTabbox({ Name = Name, Side = 2; });
         end;
 
-        TabButton.InputBegan:Connect(function(Input)
-            if Input.UserInputType == Enum.UserInputType.MouseButton1 then
-                Tab:ShowTab();
-            end;
+        TabButton.MouseButton1Click:Connect(function()
+            Tab:ShowTab();
         end);
 
         -- This was the first tab added, so we show it by default.
