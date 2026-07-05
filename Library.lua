@@ -3113,11 +3113,14 @@ function Library:CreateWindow(...)
             Parent = TabContainer;
         });
 
+        local SIDE_SPACING = 7
+        local sideSize = UDim2.new(0.5, -SIDE_SPACING-SIDE_SPACING//2, 1, -SIDE_SPACING*2)
+
         local LeftSide = Library:Create('ScrollingFrame', {
             BackgroundTransparency = 1;
             BorderSizePixel = 0;
-            Position = UDim2.new(0, 8 - 1, 0, 8 - 1);
-            Size = UDim2.new(0.5, -12 + 2, 0, 507 + 2);
+            Position = UDim2.new(0, SIDE_SPACING, 0, SIDE_SPACING);
+            Size = sideSize;
             CanvasSize = UDim2.new(0, 0, 0, 0);
             BottomImage = '';
             TopImage = '';
@@ -3129,8 +3132,8 @@ function Library:CreateWindow(...)
         local RightSide = Library:Create('ScrollingFrame', {
             BackgroundTransparency = 1;
             BorderSizePixel = 0;
-            Position = UDim2.new(0.5, 4 + 1, 0, 8 - 1);
-            Size = UDim2.new(0.5, -12 + 2, 0, 507 + 2);
+            Position = UDim2.new(0.5, SIDE_SPACING//2, 0, SIDE_SPACING);
+            Size = sideSize;
             CanvasSize = UDim2.new(0, 0, 0, 0);
             BottomImage = '';
             TopImage = '';
