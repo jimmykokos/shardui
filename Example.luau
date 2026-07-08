@@ -3,9 +3,9 @@
 
 local repo = 'https://raw.githubusercontent.com/jimmykokos/shardui/main/'
 
-local Library = loadstring(game:HttpGet(repo .. 'Library.lua'))()
-local ThemeManager = loadstring(game:HttpGet(repo .. 'addons/ThemeManager.lua'))()
-local SaveManager = loadstring(game:HttpGet(repo .. 'addons/SaveManager.lua'))()
+local Library = loadstring(game:HttpGet(repo .. 'Library.luau'))()
+local ThemeManager = loadstring(game:HttpGet(repo .. 'addons/ThemeManager.luau'))()
+local SaveManager = loadstring(game:HttpGet(repo .. 'addons/SaveManager.luau'))()
 
 Library.ScreenGui.DisplayOrder = -1
 
