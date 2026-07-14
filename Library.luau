@@ -23,6 +23,53 @@ local Options = {};
 getgenv().Toggles = Toggles;
 getgenv().Options = Options;
 
+local TOPMOST_CHECKED_TYPES = {'TextButton'}
+
+local function isTopmost(target: GuiObject, x: number, y: number): boolean
+    for _, guiObject in ipairs(ScreenGui:GetGuiObjectsAtPosition(x, y)) do
+        if guiObject == target then return true end
+        local ignored = true
+        for _, checkedType in pairs(TOPMOST_CHECKED_TYPES) do
+            if guiObject:IsA(checkedType) then
+                ignored = false
+                break
+            end
+        end
+        if not ignored then return false end
+    end
+    error('Function called while cursor is not over target')
+end
+
+local function setHoveringBehaviour(
+    target: GuiObject, onHovered: () -> (), onUnhovered: () -> ()
+): ()
+    local onHoveredCalled = false
+
+    local function callOnHovered()
+        onHovered()
+        onHoveredCalled = true
+    end
+
+    local function callOnUnhovered()
+        if not onHoveredCalled then return end
+        onUnhovered()
+        onHoveredCalled = false
+    end
+
+    target.MouseEnter:Connect(function(x, y)
+        if not isTopmost(target, x, y) then return end
+        callOnHovered()
+    end)
+    target.MouseMoved:Connect(function(x, y)
+        if isTopmost(target, x, y) then
+            if onHoveredCalled then return end
+            callOnHovered()
+        else callOnUnhovered()
+        end
+    end)
+    target.MouseLeave:Connect(callOnUnhovered)
+end
+
 local Library = {
     Registry = {};
     RegistryMap = {};
@@ -218,34 +265,19 @@ function Library:AddToolTip(InfoStr, HoverInstance)
         TextColor3 = 'FontColor',
     });
 
-    local IsHovering = false
-
-    HoverInstance.MouseEnter:Connect(function()
-        if Library:MouseIsOverOpenedFrame() then
-            return
-        end
-
-        IsHovering = true
-
+    setHoveringBehaviour(
+        HoverInstance,
+        function() Tooltip.Visible = true end,
+        function() Tooltip.Visible = false end
+    )
+    Mouse.Move:Connect(function()
         Tooltip.Position = UDim2.fromOffset(Mouse.X + 15, Mouse.Y + 12)
-        Tooltip.Visible = true
-
-        while IsHovering do
-            RunService.Heartbeat:Wait()
-            Tooltip.Position = UDim2.fromOffset(Mouse.X + 15, Mouse.Y + 12)
-        end
-    end)
-
-    HoverInstance.MouseLeave:Connect(function()
-        IsHovering = false
-        Tooltip.Visible = false
     end)
 end
 
 function Library:OnHighlight(HighlightInstance, Instance, Properties, PropertiesDefault)
-    HighlightInstance.MouseEnter:Connect(function()
+    local function highlightOn()
         local Reg = Library.RegistryMap[Instance];
-
         for Property, ColorIdx in next, Properties do
             Instance[Property] = Library[ColorIdx] or ColorIdx;
 
@@ -253,11 +285,9 @@ function Library:OnHighlight(HighlightInstance, Instance, Properties, Properties
                 Reg.Properties[Property] = ColorIdx;
             end;
         end;
-    end)
+    end
 
-    HighlightInstance.MouseLeave:Connect(function()
-        local Reg = Library.RegistryMap[Instance];
-
+    local function highlightOff()
         for Property, ColorIdx in next, PropertiesDefault do
             Instance[Property] = Library[ColorIdx] or ColorIdx;
 
@@ -265,8 +295,10 @@ function Library:OnHighlight(HighlightInstance, Instance, Properties, Properties
                 Reg.Properties[Property] = ColorIdx;
             end;
         end;
-    end)
-end;
+    end
+
+    setHoveringBehaviour(HighlightInstance, highlightOn, highlightOff)
+end
 
 function Library:MouseIsOverOpenedFrame()
     for Frame, _ in next, Library.OpenedFrames do
