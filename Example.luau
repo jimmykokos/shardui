@@ -1,11 +1,11 @@
 -- New example script written by wally
 -- You can suggest changes with a pull request or something
 
-local repo = 'https://raw.githubusercontent.com/jimmykokos/shardui/main/'
+local REPO = 'https://raw.githubusercontent.com/jimmykokos/shardui/main/'
 
-local Library = loadstring(game:HttpGet(repo .. 'Library.luau'))()
-local ThemeManager = loadstring(game:HttpGet(repo .. 'addons/ThemeManager.luau'))()
-local SaveManager = loadstring(game:HttpGet(repo .. 'addons/SaveManager.luau'))()
+local Library = loadstring(game:HttpGet(REPO .. 'Library.luau'))()
+local ThemeManager = loadstring(game:HttpGet(REPO .. 'addons/ThemeManager.luau'))()
+local SaveManager = loadstring(game:HttpGet(REPO .. 'addons/SaveManager.luau'))()
 
 Library.ScreenGui.DisplayOrder = -1
 

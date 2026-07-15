@@ -17,12 +17,6 @@ ProtectGui(ScreenGui);
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling;
 ScreenGui.Parent = CoreGui;
 
-local Toggles = {};
-local Options = {};
-
-getgenv().Toggles = Toggles;
-getgenv().Options = Options;
-
 local TOPMOST_CHECKED_TYPES = {'TextButton'}
 
 local function isTopmost(target: GuiObject, x: number, y: number): boolean
@@ -92,6 +86,8 @@ local Library = {
     Signals = {};
     ScreenGui = ScreenGui;
 };
+local Toggles = {}
+local Options = {}
 
 local RainbowStep = 0
 local Hue = 0
@@ -276,8 +272,9 @@ function Library:AddToolTip(InfoStr, HoverInstance)
 end
 
 function Library:OnHighlight(HighlightInstance, Instance, Properties, PropertiesDefault)
-    local function highlightOn()
+    local function highlightOn(): ()
         local Reg = Library.RegistryMap[Instance];
+
         for Property, ColorIdx in next, Properties do
             Instance[Property] = Library[ColorIdx] or ColorIdx;
 
@@ -287,7 +284,9 @@ function Library:OnHighlight(HighlightInstance, Instance, Properties, Properties
         end;
     end
 
-    local function highlightOff()
+    local function highlightOff(): ()
+        local Reg = Library.RegistryMap[Instance];
+        
         for Property, ColorIdx in next, PropertiesDefault do
             Instance[Property] = Library[ColorIdx] or ColorIdx;
 
@@ -2932,7 +2931,9 @@ function Library:CreateWindow(...)
         Tabs = {};
     };
 
-    local Outer = Library:Create('Frame', {
+    local Outer = Library:Create('TextButton', {
+        Text = '',
+        AutoButtonColor = false,
         BackgroundTransparency = 1,
         AnchorPoint = Config.AnchorPoint,
         BorderSizePixel = 0;
@@ -2945,12 +2946,12 @@ function Library:CreateWindow(...)
 
     Library:MakeDraggable(Outer);
 
-    local Inner = Library:Create('Frame', {
+    local Inner = Library:Create('CanvasGroup', {
+        GroupTransparency = 1,
         BackgroundColor3 = Library.MainColor;
         BorderColor3 = Library.AccentColor;
         BorderMode = Enum.BorderMode.Inset;
-        Position = UDim2.new(0, 1, 0, 1);
-        Size = UDim2.new(1, -2, 1, -2);
+        Size = UDim2.fromScale(1, 0),
         Parent = Outer;
     });
 
@@ -3468,7 +3469,6 @@ function Library:CreateWindow(...)
         Parent = ScreenGui;
     });
 
-    local TransparencyCache = {};
     local Toggled = false;
     local Fading = false;
 
@@ -3487,41 +3487,14 @@ function Library:CreateWindow(...)
             Outer.Visible = true;
         end;
 
-        for _, Desc in next, Outer:GetDescendants() do
-            local Properties = {};
-
-            if Desc:IsA('ImageLabel') then
-                table.insert(Properties, 'ImageTransparency');
-                table.insert(Properties, 'BackgroundTransparency');
-            elseif Desc:IsA('TextLabel') or Desc:IsA('TextBox') then
-                table.insert(Properties, 'TextTransparency');
-            elseif Desc:IsA('Frame') or Desc:IsA('ScrollingFrame') then
-                table.insert(Properties, 'BackgroundTransparency');
-            elseif Desc:IsA('UIStroke') then
-                table.insert(Properties, 'Transparency');
-            end;
-
-            local Cache = TransparencyCache[Desc];
-
-            if (not Cache) then
-                Cache = {};
-                TransparencyCache[Desc] = Cache;
-            end;
-
-            for _, Prop in next, Properties do
-                if not Cache[Prop] then
-                    Cache[Prop] = Desc[Prop];
-                end;
-
-                if Cache[Prop] == 1 then
-                    continue;
-                end;
-
-                TweenService:Create(Desc, TweenInfo.new(FadeTime, Enum.EasingStyle.Linear), { [Prop] = Toggled and Cache[Prop] or 1 }):Play();
-            end;
-        end;
-
-        task.wait(FadeTime);
+        local tween = TweenService:Create(
+            Inner,
+            TweenInfo.new(FadeTime, Enum.EasingStyle.Circular),
+            Toggled and {GroupTransparency = 0, Size = UDim2.fromScale(1, 1)}
+            or {GroupTransparency = 1, Size = UDim2.fromScale(1, 0)}
+        )
+        tween:Play()
+        tween.Completed:Wait()
 
         Outer.Visible = Toggled;
 
@@ -3558,5 +3531,4 @@ end;
 Players.PlayerAdded:Connect(OnPlayerChange);
 Players.PlayerRemoving:Connect(OnPlayerChange);
 
-getgenv().Library = Library
-return Library
+return Library, Toggles, Options
