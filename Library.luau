@@ -6,6 +6,7 @@ local Players = game:GetService('Players');
 local RunService = game:GetService('RunService')
 local TweenService = game:GetService('TweenService');
 local RenderStepped = RunService.RenderStepped;
+local Workspace = game:GetService('Workspace');
 local LocalPlayer = Players.LocalPlayer;
 local Mouse = LocalPlayer:GetMouse();
 
@@ -79,6 +80,8 @@ local Library = {
 
     Black = Color3.new(0, 0, 0);
     Font = Enum.Font.Code,
+
+    LiquidGlass = false; -- Включить режим "жидкого стекла" для всех элементов (задавать ДО CreateWindow)
 
     OpenedFrames = {};
     DependencyBoxes = {};
@@ -348,6 +351,344 @@ function Library:GetDarkerColor(Color)
     return Color3.fromHSV(H, S, V / 1.5);
 end;
 Library.AccentColorDark = Library:GetDarkerColor(Library.AccentColor);
+
+function Library:GetLighterColor(Color)
+    local H, S, V = Color3.toHSV(Color);
+    return Color3.fromHSV(H, S * 0.75, math.clamp(V * 1.35, 0, 1));
+end;
+
+-- ============================================================================
+-- LiquidGlass: glassmorphism-подход к эффекту "жидкого стекла" Apple.
+-- Исследование (девфорум + поведение платформы):
+--   Roblox не предоставляет чтение пикселей/буфера позади GUI, ViewportFrame
+--   не рендерит ScreenGui и "фон" мира, а GUI элементы не могут искажать
+--   реальный backdrop. Попытка "фрейм на каждый пиксель" нереальна: 40k
+--   инстансов на элемент + невозможность считать GUI-пиксели под ним.
+--   Единственный работающий приём — адаптивный тинт через raycast к миру
+--   под элементом + полупрозрачные слои, градиентные блики и мягкая тень.
+-- ============================================================================
+do
+    local Camera      = Workspace.CurrentCamera
+
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    raycastParams.IgnoreWater = true
+
+    local function updateCamera()
+        Camera = Workspace.CurrentCamera
+    end
+    Workspace:GetPropertyChangedSignal('CurrentCamera'):Connect(updateCamera)
+
+    local function getLuminance(c)
+        return 0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B
+    end
+
+    local function averageWorldColor(root)
+        if not Camera then return nil end
+
+        local absPos  = root.AbsolutePosition
+        local absSize = root.AbsoluteSize
+        local inset   = math.max(4, math.min(absSize.X, absSize.Y) * 0.2)
+
+        -- Исключаем собственные элементы ScreenGui, чтобы считать только 3D-мир
+        local guiIgnore = { ScreenGui }
+        local playerGui = (Players.LocalPlayer and Players.LocalPlayer:FindFirstChildOfClass('PlayerGui'))
+        if playerGui then guiIgnore[#guiIgnore + 1] = playerGui end
+        raycastParams.FilterDescendantsInstances = guiIgnore
+
+        -- 3 точки: углы + центр
+        local points = {
+            Vector2.new(absPos.X + inset, absPos.Y + inset),
+            Vector2.new(absPos.X + absSize.X - inset, absPos.Y + absSize.Y - inset),
+            Vector2.new(absPos.X + absSize.X * 0.5, absPos.Y + absSize.Y * 0.5),
+        }
+
+        local sumColor = Color3.new(0, 0, 0)
+        local count = 0
+
+        for _, screenPoint in ipairs(points) do
+            local ray = Camera:ViewportPointToRay(screenPoint.X, screenPoint.Y)
+            local result = Workspace:Raycast(ray.Origin, ray.Direction * 1200, raycastParams)
+            if result and result.Instance then
+                local c = result.Instance.Color
+                local m = result.Instance.Material
+                sumColor += c
+                if m == Enum.Material.Glass or m == Enum.Material.Neon then
+                    sumColor += c -- отражающие/светящиеся поверхности влияют сильнее
+                end
+                count += 1
+            end
+        end
+
+        if count == 0 then return nil end
+
+        local avg = Color3.new(sumColor.R / count, sumColor.G / count, sumColor.B / count)
+        -- смешиваем средний цвет мира с белым, чтобы тинт оставался светлым
+        return avg:Lerp(Color3.new(1, 1, 1), 0.38)
+    end
+
+    local LiquidGlassClass = {}
+    LiquidGlassClass.__index = LiquidGlassClass
+
+    function LiquidGlassClass.new(props)
+        local self = setmetatable({}, LiquidGlassClass)
+        props = props or {}
+
+        self.CornerRadius = props.CornerRadius or UDim.new(0, 10)
+        self.TintTransparency = props.TintTransparency or 0.35
+        self.AccentColor = props.AccentColor or Library.AccentColor
+        self.EdgeBrightness = props.EdgeBrightness or 1
+        self.ShadowEnabled = props.ShadowEnabled ~= false
+        self.Reflectivity = props.Reflectivity or 0.6
+        self.ThemeDriven = props.ThemeDriven ~= false
+
+        self._destroyed = false
+        self._lastSample = 0
+        self._sampleInterval = 0.15
+        self._targetTint = Color3.new(1, 1, 1)
+        self._currentTint = Color3.new(1, 1, 1)
+        self._stackDepth = 0
+
+        self._build()
+        self:_applyProperties(props)
+        return self
+    end
+
+    function LiquidGlassClass:_build()
+        -- Мягкая тень для "поднятости" над контентом под элементом
+        local shadow = Instance.new('ImageLabel')
+        shadow.Name = 'LG_Shadow'
+        shadow.BackgroundTransparency = 1
+        shadow.Image = 'rbxassetid://6014261993' -- soft radial blur
+        shadow.ImageColor3 = Color3.new(0, 0, 0)
+        shadow.ImageTransparency = 0.72
+        shadow.ScaleType = Enum.ScaleType.Slice
+        shadow.SliceCenter = Rect.new(10, 10, 246, 246)
+        shadow.Size = UDim2.new(1, 24, 1, 24)
+        shadow.Position = UDim2.new(0, -12, 0, -12)
+        shadow.ZIndex = 0
+        shadow.Visible = self.ShadowEnabled
+
+        local root = Instance.new('Frame')
+        root.Name = 'LiquidGlass'
+        root.BackgroundTransparency = 1
+        root.ClipsDescendants = true
+        root.BorderSizePixel = 0
+        shadow.Parent = root
+
+        local tint = Instance.new('Frame')
+        tint.Name = 'Tint'
+        tint.BorderSizePixel = 0
+        tint.Size = UDim2.fromScale(1, 1)
+        tint.BackgroundColor3 = self._currentTint
+        tint.BackgroundTransparency = self.TintTransparency
+        tint.ZIndex = 1
+
+        local glassGrad = Instance.new('UIGradient')
+        glassGrad.Rotation = 115
+        glassGrad.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.25),
+            NumberSequenceKeypoint.new(0.35, 0.55),
+            NumberSequenceKeypoint.new(0.55, 0.82),
+            NumberSequenceKeypoint.new(1, 0.7),
+        })
+        glassGrad.Parent = tint
+
+        local specular = Instance.new('Frame')
+        specular.Name = 'Specular'
+        specular.BorderSizePixel = 0
+        specular.Size = UDim2.fromScale(1, 1)
+        specular.BackgroundColor3 = Color3.new(1, 1, 1)
+        specular.BackgroundTransparency = 0
+        specular.ZIndex = 2
+
+        local specGrad = Instance.new('UIGradient')
+        specGrad.Rotation = 115
+        specGrad.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 1 - self.Reflectivity),
+            NumberSequenceKeypoint.new(0.3, 0.97),
+            NumberSequenceKeypoint.new(0.5, 1),
+            NumberSequenceKeypoint.new(0.75, 0.95),
+            NumberSequenceKeypoint.new(1, math.min(1, (1 - self.Reflectivity) + 0.2)),
+        })
+        specGrad.Parent = specular
+
+        local edge = Instance.new('UIStroke')
+        edge.Name = 'Edge'
+        edge.Thickness = 1.5
+        edge.Transparency = 0.35
+        edge.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        edge.Color = Color3.new(1, 1, 1)
+        edge.Parent = root
+
+        local corner = Instance.new('UICorner')
+        corner.CornerRadius = self.CornerRadius
+        corner.Parent = root
+
+        self.Root = root
+        self.Tint = tint
+        self.Specular = specular
+        self.Edge = edge
+        self.Corner = corner
+    end
+
+    function LiquidGlassClass:_applyProperties(props)
+        for key, value in pairs(props) do
+            if key ~= 'CornerRadius' and key ~= 'TintTransparency'
+                and key ~= 'AccentColor' and key ~= 'EdgeBrightness'
+                and key ~= 'ShadowEnabled' and key ~= 'Reflectivity'
+                and key ~= 'ThemeDriven' and key ~= 'Parent' and key ~= 'ZIndex' then
+                pcall(function()
+                    self.Root[key] = value
+                end)
+            end
+        end
+
+        if props.Position then self.Root.Position = props.Position end
+        if props.Size then self.Root.Size = props.Size end
+        if props.AnchorPoint then self.Root.AnchorPoint = props.AnchorPoint end
+        if props.Visible ~= nil then self.Root.Visible = props.Visible end
+        if props.LayoutOrder then self.Root.LayoutOrder = props.LayoutOrder end
+        if props.ZIndex then self.Root.ZIndex = props.ZIndex end
+        if props.Parent then self:SetParent(props.Parent) end
+    end
+
+    function LiquidGlassClass:SetParent(p)
+        if typeof(p) == 'table' and p.Root then -- поддержка наслаивания LiquidGlass
+            self.Root.Parent = p:GetContentFrame()
+            self._stackDepth = (p._stackDepth or 0) + 1
+        else
+            self.Root.Parent = p
+        end
+    end
+
+    function LiquidGlassClass:GetContentFrame()
+        if not self._content then
+            local content = Instance.new('Frame')
+            content.Name = 'Content'
+            content.BackgroundTransparency = 1
+            content.BorderSizePixel = 0
+            content.Size = UDim2.fromScale(1, 1)
+            content.ZIndex = 3
+            content.Parent = self.Root
+
+            local corner = Instance.new('UICorner')
+            corner.CornerRadius = self.CornerRadius
+            corner.Parent = content
+
+            self._content = content
+        end
+        return self._content
+    end
+
+    function LiquidGlassClass:_updateDecorations()
+        local isLight = getLuminance(self._currentTint) > 0.6
+        local edgeBase = isLight and self._currentTint or self._currentTint:Lerp(Color3.new(1, 1, 1), 0.4)
+
+        self.Edge.Color = edgeBase
+        self.Edge.Transparency = math.clamp(0.45 - getLuminance(self._currentTint) * 0.4, 0.1, 0.6)
+        self.Tint.BackgroundColor3 = self._currentTint
+        self.Tint.BackgroundTransparency = self.TintTransparency
+    end
+
+    function LiquidGlassClass:Update(dt)
+        if self._destroyed or not self.Root.Visible then return end
+        if not Library.LiquidGlass then return end
+
+        -- Наслаивание: вложенные элементы рисуют только стеклянную закраску/рамку,
+        -- без повторного raycast-сэмплинга (чтобы не было двойной тонировки)
+        if self._stackDepth > 0 then
+            self.Edge.Transparency = 0.5
+            return
+        end
+
+        self._lastSample += dt
+        if self._lastSample < self._sampleInterval then return end
+        self._lastSample = 0
+
+        local color = averageWorldColor(self.Root)
+        local baseTheme = Library.BackgroundColor
+
+        local base
+        if color then
+            base = color:Lerp(Color3.new(baseTheme.R, baseTheme.G, baseTheme.B), 0.45)
+        else
+            base = Color3.new(baseTheme.R, baseTheme.G, baseTheme.B):Lerp(Color3.new(1, 1, 1), 0.2)
+        end
+
+        self._targetTint = base
+
+        -- Плавная интерполяция тинта (как у Apple при движении окна)
+        local alpha = math.clamp(dt * 6, 0, 1)
+        self._currentTint = self._currentTint:Lerp(self._targetTint, alpha)
+        self:_updateDecorations()
+    end
+
+    function LiquidGlassClass:PlayMorph(duration)
+        if self._destroyed then return end
+        duration = duration or 0.25
+
+        local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+
+        local grad = self.Tint:FindFirstChildOfClass('UIGradient')
+        if grad then
+            local goalRot = (grad.Rotation + 90) % 360
+            game:GetService('TweenService'):Create(grad, tweenInfo, { Rotation = goalRot }):Play()
+        end
+
+        local strokeTween = game:GetService('TweenService'):Create(self.Edge, tweenInfo, {
+            Thickness = 2.5,
+            Transparency = 0.1
+        })
+        strokeTween:Play()
+        strokeTween.Completed:Connect(function()
+            if self._destroyed then return end
+            game:GetService('TweenService'):Create(self.Edge, tweenInfo, {
+                Thickness = 1.5,
+                Transparency = 0.35
+            }):Play()
+        end)
+    end
+
+    function LiquidGlassClass:Destroy()
+        self._destroyed = true
+        self.Root:Destroy()
+    end
+
+    -- API совместимости с Roblox-стилем GuiObject
+    function LiquidGlassClass:GetPropertyChangedSignal(prop)
+        return self.Root:GetPropertyChangedSignal(prop)
+    end
+
+    function LiquidGlassClass:__tostring()
+        return 'LiquidGlass'
+    end
+
+    -- Wrap root GuiObject so callers can work with familiar Instance API
+    function LiquidGlassClass:FindFirstChild(name)
+        return self.Root:FindFirstChild(name)
+    end
+
+    Library.LiquidGlassClass = LiquidGlassClass
+    Library._liquidGlassRegistry = Library._liquidGlassRegistry or {}
+
+    table.insert(Library.Signals, RunService.RenderStepped:Connect(function(dt)
+        for i = #Library._liquidGlassRegistry, 1, -1 do
+            local lg = Library._liquidGlassRegistry[i]
+            if lg._destroyed or not lg.Root or not lg.Root.Parent then
+                table.remove(Library._liquidGlassRegistry, i)
+            else
+                lg:Update(dt)
+            end
+        end
+    end))
+
+    function Library:CreateLiquidGlass(props)
+        local lg = LiquidGlassClass.new(props)
+        table.insert(Library._liquidGlassRegistry, lg)
+        return lg
+    end
+end
 
 function Library:AddToRegistry(Instance, Properties, IsHud)
     local Idx = #Library.Registry + 1;
@@ -2988,6 +3329,22 @@ function Library:CreateWindow(...)
         BorderColor3 = 'AccentColor';
     });
 
+    -- LiquidGlass: переопределяем оформление главного окна
+    local WindowGlass
+    if Library.LiquidGlass then
+        Inner.BackgroundTransparency = 1;
+        WindowGlass = Library:CreateLiquidGlass({
+            Size = UDim2.fromScale(1, 1),
+            CornerRadius = UDim.new(0, 8),
+            TintTransparency = 0.18,
+            Reflectivity = 0.7,
+            ShadowEnabled = true,
+            Parent = Inner,
+            ZIndex = -1, -- под содержимым
+        });
+        Window.RootGlass = WindowGlass;
+    end;
+
     local WindowLabel = Library:CreateLabel({
         Position = UDim2.new(0, 7, 0, 0);
         Size = UDim2.new(0, 0, 0, 25);
@@ -3188,6 +3545,7 @@ function Library:CreateWindow(...)
                 Text = '',
                 AutoButtonColor = false,
                 BackgroundColor3 = Library.BackgroundColor;
+                BackgroundTransparency = Library.LiquidGlass and 0.5 or 0,
                 BorderColor3 = Library.OutlineColor;
                 BorderMode = Enum.BorderMode.Inset;
                 Size = UDim2.new(1, 0, 0, 507 + 2);
@@ -3201,6 +3559,7 @@ function Library:CreateWindow(...)
 
             local BoxInner = Library:Create('Frame', {
                 BackgroundColor3 = Library.BackgroundColor;
+                BackgroundTransparency = Library.LiquidGlass and 0.55 or 0,
                 BorderColor3 = Color3.new(0, 0, 0);
                 -- BorderMode = Enum.BorderMode.Inset;
                 Size = UDim2.new(1, -2, 1, -2);
@@ -3214,6 +3573,7 @@ function Library:CreateWindow(...)
 
             local Highlight = Library:Create('Frame', {
                 BackgroundColor3 = Library.AccentColor;
+                BackgroundTransparency = Library.LiquidGlass and 0.3 or 0,
                 BorderSizePixel = 0;
                 Size = UDim2.new(1, 0, 0, 2);
                 Parent = BoxInner;
@@ -3285,6 +3645,7 @@ function Library:CreateWindow(...)
                 Text = '',
                 AutoButtonColor = false,
                 BackgroundColor3 = Library.BackgroundColor;
+                BackgroundTransparency = Library.LiquidGlass and 0.5 or 0,
                 BorderColor3 = Library.OutlineColor;
                 BorderMode = Enum.BorderMode.Inset;
                 Size = UDim2.new(1, 0, 0, 0);
@@ -3298,6 +3659,7 @@ function Library:CreateWindow(...)
 
             local BoxInner = Library:Create('Frame', {
                 BackgroundColor3 = Library.BackgroundColor;
+                BackgroundTransparency = Library.LiquidGlass and 0.55 or 0,
                 BorderColor3 = Color3.new(0, 0, 0);
                 -- BorderMode = Enum.BorderMode.Inset;
                 Size = UDim2.new(1, -2, 1, -2);
@@ -3311,6 +3673,7 @@ function Library:CreateWindow(...)
 
             local Highlight = Library:Create('Frame', {
                 BackgroundColor3 = Library.AccentColor;
+                BackgroundTransparency = Library.LiquidGlass and 0.3 or 0,
                 BorderSizePixel = 0;
                 Size = UDim2.new(1, 0, 0, 2);
                 ZIndex = 2;
