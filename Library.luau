@@ -449,7 +449,7 @@ do
         self._currentTint = Color3.new(1, 1, 1)
         self._stackDepth = 0
 
-        self._build()
+        self:_build()
         self:_applyProperties(props)
         return self
     end
