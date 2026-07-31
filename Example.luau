@@ -9,6 +9,9 @@ local SaveManager = loadstring(game:HttpGet(REPO .. 'addons/SaveManager.luau'))(
 
 Library.ScreenGui.DisplayOrder = -1
 
+-- Включить эффект "жидкого стекла" (должен быть задан ДО CreateWindow)
+-- Library.LiquidGlass = true
+
 local Window = Library:CreateWindow({
     -- Set Center to true if you want the menu to appear in the center
     -- Set AutoShow to true if you want the menu to appear when it is created
