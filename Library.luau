@@ -377,7 +377,7 @@ do
     local function updateCamera()
         Camera = Workspace.CurrentCamera
     end
-    Library:GiveSignal(Workspace:GetPropertyChangedSignal('CurrentCamera'):Connect(updateCamera))
+    table.insert(Library.Signals, Workspace:GetPropertyChangedSignal('CurrentCamera'):Connect(updateCamera))
 
     local function getLuminance(c)
         return 0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B
