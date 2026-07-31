@@ -3922,4 +3922,6 @@ end;
 Library:GiveSignal(Players.PlayerAdded:Connect(OnPlayerChange));
 Library:GiveSignal(Players.PlayerRemoving:Connect(OnPlayerChange));
 
-return Library, Toggles, Options
+getgenv().Toggles = Toggles
+getgenv().Options = Options
+return Library
