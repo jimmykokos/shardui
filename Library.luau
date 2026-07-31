@@ -555,14 +555,18 @@ do
     end
 
     function LiquidGlassClass:_applyProperties(props)
+        local known = {
+            CornerRadius=true, TintTransparency=true, AccentColor=true,
+            EdgeBrightness=true, ShadowEnabled=true, Reflectivity=true,
+            ThemeDriven=true, Parent=true, ZIndex=true
+        }
+
         for key, value in pairs(props) do
-            if key ~= 'CornerRadius' and key ~= 'TintTransparency'
-                and key ~= 'AccentColor' and key ~= 'EdgeBrightness'
-                and key ~= 'ShadowEnabled' and key ~= 'Reflectivity'
-                and key ~= 'ThemeDriven' and key ~= 'Parent' and key ~= 'ZIndex' then
-                pcall(function()
-                    self.Container[key] = value
-                end)
+            if not known[key] then
+                local ok, err = pcall(function() self.Container[key] = value end)
+                if not ok then
+                    warn(('[LiquidGlass] свойство %q не применено: %s'):format(tostring(key), tostring(err)))
+                end
             end
         end
 
@@ -699,7 +703,7 @@ do
     table.insert(Library.Signals, RunService.RenderStepped:Connect(function(dt)
         for i = #Library._liquidGlassRegistry, 1, -1 do
             local lg = Library._liquidGlassRegistry[i]
-            if lg._destroyed or not lg.Root or not lg.Root.Parent then
+            if lg._destroyed or not lg.Container or not lg.Container.Parent then
                 table.remove(Library._liquidGlassRegistry, i)
             else
                 lg:Update(dt)
@@ -708,7 +712,11 @@ do
     end))
 
     function Library:CreateLiquidGlass(props)
-        local lg = LiquidGlassClass.new(props)
+        local ok, lg = pcall(LiquidGlassClass.new, props)
+        if not ok then
+            warn('[LiquidGlass] Failed to create: ' .. tostring(lg))
+            return nil
+        end
         table.insert(Library._liquidGlassRegistry, lg)
         return lg
     end
