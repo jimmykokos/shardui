@@ -31,7 +31,7 @@ local function isTopmost(target: GuiObject, x: number, y: number): boolean
         end
         if not ignored then return false end
     end
-    error('Function called while cursor is not over target')
+    return false
 end
 
 local function setHoveringBehaviour(
@@ -168,8 +168,15 @@ function Library:Create(Class, Properties)
         _Instance = Instance.new(Class);
     end;
 
+    -- Parent is applied last so the instance is fully configured before entering the DataModel (performance)
     for Property, Value in next, Properties do
-        _Instance[Property] = Value;
+        if Property ~= 'Parent' then
+            _Instance[Property] = Value;
+        end;
+    end;
+
+    if Properties.Parent then
+        _Instance.Parent = Properties.Parent;
     end;
 
     return _Instance;
@@ -406,6 +413,11 @@ function Library:GiveSignal(Signal)
 end
 
 function Library:Unload()
+    if Library.Unloaded then
+        return;
+    end;
+    Library.Unloaded = true;
+
     -- Unload all of the signals
     for Idx = #Library.Signals, 1, -1 do
         local Connection = table.remove(Library.Signals, Idx)
@@ -414,7 +426,8 @@ function Library:Unload()
 
      -- Call our unload callback, maybe to undo some hooks etc
     if Library.OnUnload then
-        Library.OnUnload()
+        pcall(Library.OnUnload);
+        Library.OnUnload = nil;
     end
 
     ScreenGui:Destroy()
@@ -1199,7 +1212,11 @@ do
                     return Key == 'MB1' and InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
                         or Key == 'MB2' and InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2);
                 else
-                    return InputService:IsKeyDown(Enum.KeyCode[KeyPicker.Value]);
+                    local KeyCode = Enum.KeyCode[KeyPicker.Value];
+                    if not KeyCode then
+                        return false;
+                    end;
+                    return InputService:IsKeyDown(KeyCode);
                 end;
             else
                 return KeyPicker.Toggled;
@@ -1256,14 +1273,14 @@ do
                         Text = Text .. '.';
                         DisplayLabel.Text = Text;
 
-                        wait(0.4);
+                        task.wait(0.4);
                     end;
                 end);
 
-                wait(0.2);
+                task.wait(0.2);
 
-                local Event;
-                Event = InputService.InputBegan:Connect(function(Input)
+                local Connection;
+                Connection = InputService.InputBegan:Connect(function(Input)
                     local Key;
 
                     if Input.UserInputType == Enum.UserInputType.Keyboard then
@@ -1274,8 +1291,20 @@ do
                         Key = 'MB2';
                     end;
 
+                    if not Key then
+                        -- Unsupported input (mouse wheel, touch, etc.), keep listening
+                        return;
+                    end;
+
                     Break = true;
                     Picking = false;
+                    Connection:Disconnect();
+
+                    if Key == 'Escape' then
+                        -- Cancel picking and restore the previous key
+                        DisplayLabel.Text = KeyPicker.Value;
+                        return;
+                    end;
 
                     DisplayLabel.Text = Key;
                     KeyPicker.Value = Key;
@@ -1284,8 +1313,6 @@ do
                     Library:SafeCallback(KeyPicker.Changed, Input.KeyCode or Input.UserInputType)
 
                     Library:AttemptSave();
-
-                    Event:Disconnect();
                 end);
             elseif Input.UserInputType == Enum.UserInputType.MouseButton2 and not Library:MouseIsOverOpenedFrame() then
                 ModeSelectOuter.Visible = true;
@@ -1814,7 +1841,7 @@ do
     end;
 
     function Funcs:AddToggle(Idx, Info)
-        assert(Info.Text, 'AddInput: Missing `Text` string.')
+        assert(Info.Text, 'AddToggle: Missing `Text` string.')
 
         local Toggle = {
             Value = Info.Default or false;
@@ -1947,12 +1974,13 @@ do
         return Toggle;
     end;
 
-    function Funcs:AddSlider(Idx, Info)
+        function Funcs:AddSlider(Idx, Info)
         assert(Info.Default, 'AddSlider: Missing default value.');
         assert(Info.Text, 'AddSlider: Missing slider text.');
         assert(Info.Min, 'AddSlider: Missing minimum value.');
         assert(Info.Max, 'AddSlider: Missing maximum value.');
         assert(Info.Rounding, 'AddSlider: Missing rounding value.');
+        assert(Info.Max > Info.Min, 'AddSlider: `Max` must be greater than `Min`.');
 
         local Slider = {
             Value = Info.Default;
@@ -2522,7 +2550,7 @@ do
             end;
         end);
 
-        InputService.InputBegan:Connect(function(Input)
+        Library:GiveSignal(InputService.InputBegan:Connect(function(Input)
             if Input.UserInputType == Enum.UserInputType.MouseButton1 then
                 local AbsPos, AbsSize = ListOuter.AbsolutePosition, ListOuter.AbsoluteSize;
 
@@ -2532,7 +2560,7 @@ do
                     Dropdown:CloseDropdown();
                 end;
             end;
-        end);
+        end));
 
         Dropdown:BuildDropdownList();
         Dropdown:Display();
@@ -2894,11 +2922,11 @@ function Library:Notify(Text, Time)
     pcall(NotifyOuter.TweenSize, NotifyOuter, UDim2.new(0, XSize + 8 + 4, 0, YSize), 'Out', 'Quad', 0.4, true);
 
     task.spawn(function()
-        wait(Time or 5);
+        task.wait(Time or 5);
 
         pcall(NotifyOuter.TweenSize, NotifyOuter, UDim2.new(0, 0, 0, YSize), 'Out', 'Quad', 0.4, true);
 
-        wait(0.4);
+        task.wait(0.4);
 
         NotifyOuter:Destroy();
     end);
@@ -3528,7 +3556,7 @@ local function OnPlayerChange()
     end;
 end;
 
-Players.PlayerAdded:Connect(OnPlayerChange);
-Players.PlayerRemoving:Connect(OnPlayerChange);
+Library:GiveSignal(Players.PlayerAdded:Connect(OnPlayerChange));
+Library:GiveSignal(Players.PlayerRemoving:Connect(OnPlayerChange));
 
 return Library, Toggles, Options

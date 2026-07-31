@@ -147,7 +147,9 @@ local ThemeManager = {} do
 		end
 
 		local data = readfile(path)
-		local success, decoded = pcall(httpService.JSONDecode, httpService, data)
+		local success, decoded = pcall(function()
+			return httpService:JSONDecode(data)
+		end)
 		
 		if not success then
 			return nil

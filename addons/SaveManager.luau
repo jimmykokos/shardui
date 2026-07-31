@@ -26,7 +26,7 @@ local SaveManager = {} do
 		},
 		Dropdown = {
 			Save = function(idx, object)
-				return { type = 'Dropdown', idx = idx, value = object.Value, mutli = object.Multi }
+				return { type = 'Dropdown', idx = idx, value = object.Value, multi = object.Multi }
 			end,
 			Load = function(idx, data)
 				if Options[idx] then 
@@ -158,25 +158,12 @@ local SaveManager = {} do
 
 		local out = {}
 		for i = 1, #list do
-			local file = list[i]
-			if file:sub(-5) == '.json' then
-				-- i hate this but it has to be done ...
-
-				local pos = file:find('.json', 1, true)
-				local start = pos
-
-				local char = file:sub(pos, pos)
-				while char ~= '/' and char ~= '\\' and char ~= '' do
-					pos = pos - 1
-					char = file:sub(pos, pos)
-				end
-
-				if char == '/' or char == '\\' then
-					table.insert(out, file:sub(pos + 1, start - 1))
-				end
+			local name = list[i]:match('([^/\\]+)%.json$')
+			if name then
+				table.insert(out, name)
 			end
 		end
-		
+
 		return out
 	end
 
