@@ -3531,4 +3531,6 @@ end;
 Players.PlayerAdded:Connect(OnPlayerChange);
 Players.PlayerRemoving:Connect(OnPlayerChange);
 
-return Library, Toggles, Options
+getgenv().Toggles = Toggles
+getgenv().Options = Options
+return Library
