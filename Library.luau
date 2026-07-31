@@ -377,7 +377,7 @@ do
     local function updateCamera()
         Camera = Workspace.CurrentCamera
     end
-    Workspace:GetPropertyChangedSignal('CurrentCamera'):Connect(updateCamera)
+    Library:GiveSignal(Workspace:GetPropertyChangedSignal('CurrentCamera'):Connect(updateCamera))
 
     local function getLuminance(c)
         return 0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B
@@ -455,9 +455,15 @@ do
     end
 
     function LiquidGlassClass:_build()
+        -- Внешний контейнер: не обрезает тень, но ограничивает внешний вид
+        local container = Instance.new('Frame')
+        container.Name = 'LiquidGlass'
+        container.BackgroundTransparency = 1
+        container.BorderSizePixel = 0
+
         -- Мягкая тень для "поднятости" над контентом под элементом
         local shadow = Instance.new('ImageLabel')
-        shadow.Name = 'LG_Shadow'
+        shadow.Name = 'Shadow'
         shadow.BackgroundTransparency = 1
         shadow.Image = 'rbxassetid://6014261993' -- soft radial blur
         shadow.ImageColor3 = Color3.new(0, 0, 0)
@@ -468,13 +474,21 @@ do
         shadow.Position = UDim2.new(0, -12, 0, -12)
         shadow.ZIndex = 0
         shadow.Visible = self.ShadowEnabled
+        shadow.Parent = container
 
+        -- Внутренний корневой фрейм с клиппингом по форме
         local root = Instance.new('Frame')
-        root.Name = 'LiquidGlass'
+        root.Name = 'GlassBody'
         root.BackgroundTransparency = 1
         root.ClipsDescendants = true
         root.BorderSizePixel = 0
-        shadow.Parent = root
+        root.Size = UDim2.fromScale(1, 1)
+        root.ZIndex = 1
+
+        local rootCorner = Instance.new('UICorner')
+        rootCorner.CornerRadius = self.CornerRadius
+        rootCorner.Parent = root
+        root.Parent = container
 
         local tint = Instance.new('Frame')
         tint.Name = 'Tint'
@@ -483,6 +497,10 @@ do
         tint.BackgroundColor3 = self._currentTint
         tint.BackgroundTransparency = self.TintTransparency
         tint.ZIndex = 1
+
+        local tintCorner = Instance.new('UICorner')
+        tintCorner.CornerRadius = self.CornerRadius
+        tintCorner.Parent = tint
 
         local glassGrad = Instance.new('UIGradient')
         glassGrad.Rotation = 115
@@ -513,6 +531,10 @@ do
         })
         specGrad.Parent = specular
 
+        local specCorner = Instance.new('UICorner')
+        specCorner.CornerRadius = self.CornerRadius
+        specCorner.Parent = specular
+
         local edge = Instance.new('UIStroke')
         edge.Name = 'Edge'
         edge.Thickness = 1.5
@@ -521,15 +543,15 @@ do
         edge.Color = Color3.new(1, 1, 1)
         edge.Parent = root
 
-        local corner = Instance.new('UICorner')
-        corner.CornerRadius = self.CornerRadius
-        corner.Parent = root
+        tint.Parent = root
+        specular.Parent = root
 
+        self.Container = container
         self.Root = root
+        self.Shadow = shadow
         self.Tint = tint
         self.Specular = specular
         self.Edge = edge
-        self.Corner = corner
     end
 
     function LiquidGlassClass:_applyProperties(props)
@@ -539,26 +561,28 @@ do
                 and key ~= 'ShadowEnabled' and key ~= 'Reflectivity'
                 and key ~= 'ThemeDriven' and key ~= 'Parent' and key ~= 'ZIndex' then
                 pcall(function()
-                    self.Root[key] = value
+                    self.Container[key] = value
                 end)
             end
         end
 
-        if props.Position then self.Root.Position = props.Position end
-        if props.Size then self.Root.Size = props.Size end
-        if props.AnchorPoint then self.Root.AnchorPoint = props.AnchorPoint end
-        if props.Visible ~= nil then self.Root.Visible = props.Visible end
-        if props.LayoutOrder then self.Root.LayoutOrder = props.LayoutOrder end
-        if props.ZIndex then self.Root.ZIndex = props.ZIndex end
+        -- Geometrica/позиционирование применяется к внешнему контейнеру (включая тень)
+        if props.Position then self.Container.Position = props.Position end
+        if props.Size then self.Container.Size = props.Size end
+        if props.AnchorPoint then self.Container.AnchorPoint = props.AnchorPoint end
+        if props.Visible ~= nil then self.Container.Visible = props.Visible end
+        if props.LayoutOrder then self.Container.LayoutOrder = props.LayoutOrder end
+        if props.ZIndex then self.Container.ZIndex = props.ZIndex end
         if props.Parent then self:SetParent(props.Parent) end
     end
 
     function LiquidGlassClass:SetParent(p)
-        if typeof(p) == 'table' and p.Root then -- поддержка наслаивания LiquidGlass
-            self.Root.Parent = p:GetContentFrame()
+        if typeof(p) == 'table' and p.GetContentFrame then -- наслаивание LiquidGlass
+            self.Container.Parent = p:GetContentFrame()
             self._stackDepth = (p._stackDepth or 0) + 1
+            self.Shadow.Visible = false -- вложенные элементы без тени (визуально проще)
         else
-            self.Root.Parent = p
+            self.Container.Parent = p
         end
     end
 
@@ -569,7 +593,7 @@ do
             content.BackgroundTransparency = 1
             content.BorderSizePixel = 0
             content.Size = UDim2.fromScale(1, 1)
-            content.ZIndex = 3
+            content.ZIndex = 4
             content.Parent = self.Root
 
             local corner = Instance.new('UICorner')
@@ -592,7 +616,7 @@ do
     end
 
     function LiquidGlassClass:Update(dt)
-        if self._destroyed or not self.Root.Visible then return end
+        if self._destroyed or not self.Container.Visible then return end
         if not Library.LiquidGlass then return end
 
         -- Наслаивание: вложенные элементы рисуют только стеклянную закраску/рамку,
@@ -652,12 +676,12 @@ do
 
     function LiquidGlassClass:Destroy()
         self._destroyed = true
-        self.Root:Destroy()
+        self.Container:Destroy()
     end
 
     -- API совместимости с Roblox-стилем GuiObject
     function LiquidGlassClass:GetPropertyChangedSignal(prop)
-        return self.Root:GetPropertyChangedSignal(prop)
+        return self.Container:GetPropertyChangedSignal(prop)
     end
 
     function LiquidGlassClass:__tostring()
@@ -3922,4 +3946,6 @@ end;
 Library:GiveSignal(Players.PlayerAdded:Connect(OnPlayerChange));
 Library:GiveSignal(Players.PlayerRemoving:Connect(OnPlayerChange));
 
-return Library, Toggles, Options
+getgenv().Toggles = Toggles
+getgenv().Options = Options
+return Library
